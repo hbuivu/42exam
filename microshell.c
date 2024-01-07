@@ -72,7 +72,7 @@ void ft_exec(int i, char **argv, char **envp)
 	waitpid(pid, NULL, 0);
 	if (dup2(fd[0], STDIN_FILENO) == -1 || close(fd[0] == -1 || close(fd[1]) == -1))
 		return (print_err("error: fatal", NULL));
-	return (0);
+	// return (0);
 }
 
 

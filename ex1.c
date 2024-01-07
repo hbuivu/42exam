@@ -38,7 +38,7 @@ void ft_execute(char *argv[], int i, int tmp_fd, char *env[])
 {
 	//overwrite ; or | or NULL with NULL to use the array as input for execve.
 	//we are here in the child so it has no impact in the parent process.
-	argv[i] = NULL;
+	argv[i] = NULL; //truncate the arguments to pass into execve. perhaps should consider making a struct instead to make it clearer
 	dup2(tmp_fd, STDIN_FILENO);
 	close(tmp_fd);
 	execve(argv[0], argv, env);
