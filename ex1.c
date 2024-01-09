@@ -89,7 +89,7 @@ int	main(int argc, char *argv[], char *env[])
 				dup2(fd[1], STDOUT_FILENO);
 				close(fd[0]);
 				close(fd[1]);
-				ft_execute(argv, i, tmp_fd, env);
+				ft_execute(argv, i, tmp_fd, env); //tmp fd is stdinput
 			}
 			else
 			{

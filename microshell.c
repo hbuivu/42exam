@@ -2,18 +2,19 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 
 int	ft_strlen(char *str)
 {
 	if (str == NULL)
-		return (0); //?
-	int i = 0;
-	while (str[i])
-		i++;
-	return (i);
+		return (0);
+	int num_args = 0;
+	while (str[num_args])
+		num_args++;
+	return (num_args);
 }
 
-void	(char *msg, char *arg)
+void	print_err(char *msg, char *arg)
 {
 	write(STDERR_FILENO, msg, ft_strlen(msg));
 	if (arg)
@@ -24,93 +25,102 @@ void	(char *msg, char *arg)
 	write(STDERR_FILENO, "\n", 1);
 }
 
-void ft_cd(int i, char **argv)
+void ft_cd(int num_args, char **argv)
 {
-	if (i != 2)
+	if (num_args != 2)
 		print_err("error: cd: bad arguments", NULL);
 	else if (chdir(argv[1]) != 0)
 		print_err("error: cd: cannot change directory to", argv[1]);
 }
 
-void ft_exec(int i, char **argv, char **envp)
-{
-	/* if ; or end
-		pid = fork();
-		if (pid == 0)
-			dup2(something here);
-			close (fd in dup2);
-			execve(*argv, argv, envp);
-			print_err("error: cannot execute", *argv);
-			exit(1);
-		else
-			close(the one fd);
-			waitpid for all the child processes
-			tmpfd = dup(STDIN FILENO) //why??
-	   if | 
-	   	pipe(fd);
-		pid = fork();
-		if (pid == 0)
-			close (fd[0]);
-			dupe2(fd[1], STDOUT_FILENO) - fd[1] is the write end of pipe
-			close (fd[1]);
-
-	*/
-
-	int fd[2];
-	int pid;
-	
-	if (pipe(fd) == -1)
-		return (print_err("error: fatal", NULL));
-	pid = fork();
-	if (pid == 0) //child
-	{
-		if (dup2(fd[1], STDOUT_FILENO) == -1 || close(fd[0] == -1 || close(fd[1]) == -1))
-			return (print_err("error: fatal", NULL));
-		execve(*argv, argv, envp);
-		return (print_err("error: cannot execute"), *argv);
-	}
-	waitpid(pid, NULL, 0);
-	if (dup2(fd[0], STDIN_FILENO) == -1 || close(fd[0] == -1 || close(fd[1]) == -1))
-		return (print_err("error: fatal", NULL));
-	// return (0);
-}
-
-
 int main(int argc, char** argv, char** envp)
 {
-	int i = 0;
+	int num_args = 0;
+	int prev_fd = dup(STDIN_FILENO);
+	int fd[2];
+	int status;
+	int pid;
+
 	if (argc < 2)
 		return (0);
-	argv++;
-	while (argv[i] && argv[i + 1])
+	while (argv[num_args] && argv[num_args + 1])
 	{
-		argv += i;
-		i = 0;
-		while (argv[i] && strcmp(argv[i], "|") && strcmp(argv[i], ";"))
-			i++;
+		argv = argv + num_args + 1;
+		num_args = 0;
+		while (argv[num_args] && strcmp(argv[num_args], "|") && strcmp(argv[num_args], ";"))
+			num_args++;
 		if (strcmp(argv[0], "cd") == 0)
-			ft_cd(i, argv);
-		else 
-			ft_exec(i, argv, envp);
-		//if i == 0 or we have ;, execute in stdout
-		argv++
+			ft_cd(num_args, argv);
+		else if (num_args != 0 && (argv[num_args] == NULL || strcmp(argv[num_args], ";") == 0)) //if last argument or ;
+		{
+			pid = fork();
+			if (pid == 0)
+			{
+				argv[num_args] = NULL;
+				dup2(prev_fd, STDIN_FILENO);
+				close(prev_fd);
+				execve(argv[0], argv, envp);
+				print_err("error: cannot execute", argv[0]);
+				exit(1);
+			}
+			close(prev_fd);
+			if (argv[num_args] != NULL)
+				prev_fd = dup(STDIN_FILENO);
+			waitpid(pid, &status, 0);
+		}
+		else if (num_args != 0 && strcmp(argv[num_args], "|") == 0) //if pipe
+		{
+			pipe(fd);
+			pid = fork(); 
+			if (pid == 0)
+			{
+				argv[num_args] = NULL;
+				dup2(fd[1], STDOUT_FILENO);
+				dup2(prev_fd, STDIN_FILENO);
+				close(fd[0]);
+				close(fd[1]);
+				close(prev_fd);
+				execve(argv[0], argv, envp);
+				print_err("error: cannot execute", argv[0]);
+				exit(1);
+			}
+			close(fd[1]);
+			close(prev_fd);
+			prev_fd = fd[0]; //save read end for the next command 
+			waitpid(pid, &status, 0);
+		}
 	}
 	return (0);
 }
 
-// char **str = calloc(6, sizeof(char *));
-	// str[0] = strdup("cd");
-	// str[1] = strdup("home");
-	// str[2] = strdup("|");
-	// str[3] = strdup("cd");
-	// str[4] = strdup("home");
+/* 
+If cd
+	follow cd
+If last argument
+	read from previous fd
+	execute and send to stdout
+if argument is followed by ;
+	read from previous fd
+	execute and send to stdout
+if argument is followed by |
+	read from previous fd
+	write to the next pipe
+	execute and send read end of next pipe
+if first argument
+	write to next pipe
+	execute and send to read end of next pipe
 
-	// while(str[i] && str[i + 1])
-	// {
-	// 	str += i;
-	// 	printf("i: %i s: %s\n", i, *str);
-	// 	i = 0;
-	// 	while (str[i] && strcmp(str[i], "|") && strcmp(str[i], ";"))
-	// 		i++;
-	// 	str++;
-	// }
+CHILD PROCESS
+-terminate where pipe is in argv to NULL so it can be sent through execve
+-dup necessary fds
+-close all fds
+-execute
+-print error message if error
+-exit 1
+
+PARENT PROCESS
+close necessary fds
+dup previous fd
+waitpid
+*/
+	
