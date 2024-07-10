@@ -4,12 +4,51 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// struct sockaddr_in {
-//     short int          sin_family;  // Address family, AF_INET
-//     unsigned short int sin_port;    // Port number
-//     struct in_addr     sin_addr;    // Internet address
-//     unsigned char      sin_zero[8]; // Same size as struct sockaddr
-// };
+void	ret_err()
+{
+	write (2, "Fatal Error\n", 11);
+	exit(1);
+}
+
+int	create_listen_socket(int port)
+{
+	//create listening socket
+	// int socket(int domain, int type, int protocol); 
+	int listen_sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (listen_sock_fd) == -1
+		ret_err();
+
+	//bind listening socket tor port
+	//int bind(int sockfd, struct sockaddr *my_addr, int addrlen);
+	// struct sockaddr_in {
+	//     short int          sin_family;  // Address family, AF_INET
+	//     unsigned short int sin_port;    // Port number
+	//     struct in_addr     sin_addr;    // Internet address
+	//     unsigned char      sin_zero[8]; // Same size as struct sockaddr
+	// };
+	// struct in_addr {
+	// 	uint32_t s_addr; // that's a 32-bit int (4 bytes)
+	// };
+	struct sockaddr_in serv_addr;
+	bzero(&serv_addr, sizeof(serv_addr));
+	
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_port = htons(port);
+	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY)
+	//can use INADDR_LOOPBACK - for localhost communication only
+	//INADDR_ANY - socket should bind to all available network interfaces
+	//can we use htonl?
+
+	//bind socket to port
+	if (bind(listen_sock_fd, &serv_addr, sizeof(serv_addr)) == -1)
+		ret_err();
+	
+	//set up socket as a listening socket
+	if (listen(listen_sock_fd, 10) == -1)
+		ret_err();
+	
+	return (listen_sock_fd);
+}
 
 int main(int argc, char **argv)
 {
@@ -22,31 +61,46 @@ int main(int argc, char **argv)
 	//check port
 	//port needs to be in between 1024 and 65535
 	//port needs to be an integer only
+	//convert port to an int
 	int port = atoi(argv[1]);
 
 	//create listening socket
-	// int socket(int domain, int type, int protocol); 
-	int listen_sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-	if (listen_sock_fd) == -1
-	{
-		write (2, "Fatal Error\n", 11);
-		exit(1);
-	}
-
-	//bind listening socke tor port
-	//int bind(int sockfd, struct sockaddr *my_addr, int addrlen);
-	struct sockaddr_in serv_addr;
-	bzero(&serv_addr, sizeof(serv_addr));
+	int listen_sock_fd = create_listen_socket(port);
 	
-	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_port = port;
-	serv_addr.sin_addr = 
-
-	if (bind(listen_sock_fd, &serv_addr, sizeof(addr)) == -1)
+	//set up server loop
+	int run = 1;
+	while (run == 1)
 	{
-		write (2, "Fatal Error\n", 11);
-		exit(1);
+		//poll the fds using select
+		// int select(int numfds, fd_set *readfds, fd_set *writefds,
+        //    fd_set *exceptfds, struct timeval *timeout); 
+		// select checks a set of fds and 
+		// numfds should be set to highest numbered fd in any set plus 1
+		// void FD_ZERO(fd_set *set); -> initialize fd set to empty 
+		// void FD_SET(int fd, fd_set *set); -> tell select that you want to monitor this fd
+		// int FD_ISSET(int fd, fd_set *set); -> checks if fd is part of specified fd set
+		fd_set	readfds, writefds, currfds;
+		FD_ZERO(readfds);
+		FD_ZERO(writefds);
+		FD_SET(listen_sock_fd, &list_fds);
+		int maxfd = client_fd; //????
+		int ret = select (num_fds, &fd_list, NULL, NULL, NULL);
+		if (ret < 0)
+		{
+			//close all fds
+			ret_err();
+		}
+
+		//iterate over each fd and check revents
+			//if socket is listen socket, add new client
+			//if revents is POLLIN read msg
+			//if revents is POLLOUT send msg
+			//if revents is POLLHUP delete fd
 	}
+	
+
+	
+
 
 
 	
@@ -55,20 +109,6 @@ int main(int argc, char **argv)
 	
 	//set up server struct with all the info
 	//functions to use: socket, bind
-
-	hints.ai_family = AF_INET; //IPV4
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_PASSIVE;
-
-	if (getaddrinfo(NULL, port, &hints, &server) != 0 || 
-		(listenSockfd = socket(server->ai_family, server->ai_socktype, server->ai_protocol)) == -1 ||
-		setsockopt(listenSockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1 ||
-		bind(listenSockfd, server->ai_addr, server->ai_addrlen) == -1 ||
-		listen(listenSockfd, 10) == -1)
-	{
-		write(2, "Fatal Error\n", 11);
-		exit (1);
-	}
 	//poll all fds
 
 
