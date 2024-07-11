@@ -140,16 +140,19 @@ char	*generate_msg(int id, char *msg, int tag)
 //deliver msg to client mailbox - not actually sending message!!
 void	deliver_msg(char *msg, client *clientlist)
 {
-	for (int fd = 0; fd <= maxfd; fd++)
+	if (clientlist != NULL)
 	{
-		if (clientlist[fd].id != 0)
+		for (int fd = 0; fd <= maxfd; fd++)
 		{
-			int msg_len = strlen(msg);
-			int mailbox_len = strlen(clientlist[fd].mailbox);
-			char *temp = (char *)realloc(clientlist[fd].mailbox, msg_len + mailbox_len + 1);
-			if (temp == NULL)
-				exit_program(clientlist);
-			strcat(clientlist[fd].mailbox, msg);
+			if (clientlist[fd].id != 0)
+			{
+				int msg_len = strlen(msg);
+				int mailbox_len = strlen(clientlist[fd].mailbox);
+				char *temp = (char *)realloc(clientlist[fd].mailbox, msg_len + mailbox_len + 1);
+				if (temp == NULL)
+					exit_program(clientlist);
+				strcat(clientlist[fd].mailbox, msg);
+			}
 		}
 	}
 	free(msg);
@@ -174,6 +177,13 @@ void	add_new_client(int server_socket, client *clientlist, fd_set *currfds)
 		int newfd = accept(server_socket, (struct sockaddr *)&client_info, &addrlen);
 		if (newfd == -1)
 			return ;
+
+		//drop arrival message in existing client's mailboxes
+		if (clientlist != NULL)
+		{
+			char *msg = generate_msg(next_client_id, NULL, NEWCLIENT);
+			deliver_msg(msg, clientlist);
+		}
 		
 		//check maxfd to see if we need to reset it and resize clientlist
 		if (newfd > maxfd)
@@ -201,9 +211,6 @@ void	add_new_client(int server_socket, client *clientlist, fd_set *currfds)
 		//add new fd to currfds list
 		FD_SET(newfd, currfds);
 
-		//drop arrival message in existing client's mailboxes
-		char *msg = generate_msg(clientlist[newfd].id, NULL, NEWCLIENT);
-		deliver_msg(msg, clientlist);
 }
 
 void	read_msg(int fd, client *clientlist, fd_set *currfds)
@@ -294,6 +301,7 @@ int main(int argc, char **argv)
 			else if (FD_ISSET(fd, &writefds))
 				send_msg(fd, clientlist);
 		}
+		printf("finished one round\n");
 	}
 	close(server_socket); //when do we do this?
 	return (0);
