@@ -1,5 +1,3 @@
-//to test nc localhost -port
-
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
@@ -13,22 +11,21 @@
 
 typedef struct s_client
 {
-	char *to_send;
+	char *msg;
 	int id;
 }	t_client;
+
+int maxfd = 0;
+int sockfd = 0;
+int next_client_id = 0;
 
 fd_set writefds;
 fd_set readfds;
 fd_set currfds;
 
-int maxfd = 0;
-int next_client_id = 0;
-int sockfd = 0;
-
-char send_buf[MAX_MSG_SIZE];
-char recv_buf[MAX_MSG_SIZE];
-
 t_client clients[65536];
+char sendbuf[MAX_MSG_SIZE];
+char recvbuf[MAX_MSG_SIZE];
 
 int extract_message(char **buf, char **msg)
 {
@@ -87,81 +84,73 @@ void	send_to_all(int senderfd)
 {
 	for (int fd = 0; fd <= maxfd; fd++)
 		if (FD_ISSET(fd, &writefds) && fd != senderfd && fd != sockfd)
-			send(fd, send_buf, strlen(send_buf), 0);
+			send(fd, sendbuf, strlen(sendbuf), 0);
 }
 
 void	add_client()
 {
-	//create new client fd
-	struct sockaddr_in client_address;
-	socklen_t len = sizeof(client_address);
-	bzero(&client_address, sizeof(struct sockaddr_in));
-
-	int new_client_fd = accept(sockfd, (struct sockaddr *)&client_address, &len);
-	if (new_client_fd == -1)
+	struct sockaddr_in cli;
+	socklen_t len = sizeof(cli);
+	bzero(&cli, sizeof(cli)); 
+	int clientfd = accept(sockfd, (struct sockaddr *)&cli, &len);
+	if (clientfd < 0)
 		return ;
 	
-	//add client
-	clients[new_client_fd].id = next_client_id;
-	FD_SET(new_client_fd, &currfds);
+	//add client to array and set
+	clients[clientfd].id = next_client_id;
+	FD_SET(clientfd, &currfds);
 
-	//set global variables
-	if (maxfd < new_client_fd)
-		maxfd = new_client_fd;
+	//update global variables
 	next_client_id++;
+	if (clientfd > maxfd)
+		maxfd = clientfd;
 
 	//send message
-	sprintf(send_buf, "server: client %d just arrived\n", clients[new_client_fd].id);
-	send_to_all(new_client_fd);
+	sprintf(sendbuf, "server: client %d just arrived\n", clients[clientfd].id);
+	send_to_all(clientfd);     
 }
 
 void	disconnect_client(int fd)
 {
-	//send message
-	sprintf(send_buf, "server: client %d just left\n", clients[fd].id);
+	sprintf(sendbuf, "server: client %d just left\n", clients[fd].id);
 	send_to_all(fd);
-	
-	//remove from client array
-	free(clients[fd].to_send);
-	clients[fd].to_send = NULL;
 
-	//remove from set
+	free(clients[fd].msg);
+	clients[fd].msg = NULL;
 	FD_CLR(fd, &currfds);
-
-	//close fd
 	close(fd);
 }
 
 void	send_message(int bytes, int fd)
 {
-	recv_buf[bytes] = '\0';
-	clients[fd].to_send = str_join(clients[fd].to_send, recv_buf);
+	recvbuf[bytes] = '\0';
+	clients[fd].msg = str_join(clients[fd].msg, recvbuf);
 	char *msg = NULL;
-	while (extract_message(&(clients[fd].to_send), &msg))
+	while (extract_message(&(clients[fd].msg), &msg))
 	{
-		sprintf(send_buf, "client %d: %s", clients[fd].id, msg);
+		sprintf(sendbuf, "client %d: %s", clients[fd].id, msg);
 		send_to_all(fd);
 		free(msg);
 		msg = NULL;
 	}
 }
 
+
 int main(int argc, char **argv) 
 {
 	if (argc != 2)
 	{
-		write(2, "Wrong number of arguments\n", 26);
+		write(2, "Wrong number of arguments\n", 27);
 		exit(1);
 	}
 
-	//configure port
 	int port = atoi(argv[1]);
-	
-	// socket create and verification
-	struct sockaddr_in servaddr;  
+
+	//create listen socket
+	struct sockaddr_in servaddr; 
 	sockfd = socket(AF_INET, SOCK_STREAM, 0); 
-	if (sockfd == -1)
-		return_error(); 
+	if (sockfd == -1) 
+		return_error();
 	bzero(&servaddr, sizeof(servaddr)); 
 
 	// assign IP, PORT 
@@ -175,28 +164,24 @@ int main(int argc, char **argv)
 	if (listen(sockfd, 10) != 0)
 		return_error();
 	
-	//initialize fd sets
-	FD_ZERO(&currfds);
+	//initialize sets
 	FD_ZERO(&writefds);
 	FD_ZERO(&readfds);
-	
-	//add sockfd to the currfds to monitor
+	FD_ZERO(&currfds);
+
+	//add sockfd to currfds
 	FD_SET(sockfd, &currfds);
 
-	//initialize maxfd to sockfd
+	//set maxfd
 	maxfd = sockfd;
 
-	while (1)
+	while(1)
 	{
-		//set write and read fd sets to currfds
-		writefds = currfds;
 		readfds = currfds;
+		writefds = currfds;
 
-		//monitor
 		if (select(maxfd + 1, &readfds, &writefds, NULL, NULL) == -1)
 			continue;
-		
-		//iterate over all fds up until maxfd
 		for (int fd = 0; fd <= maxfd; fd++)
 		{
 			if (FD_ISSET(fd, &readfds))
@@ -205,13 +190,11 @@ int main(int argc, char **argv)
 					add_client();
 				else
 				{
-					//read message
-					int bytes = recv(fd, recv_buf, MAX_MSG_SIZE, 0);
+					int bytes = recv(fd, recvbuf, MAX_MSG_SIZE, 0);
 					if (bytes <= 0)
 						disconnect_client(fd);
 					else
 						send_message(bytes, fd);
-					
 				}
 			}
 		}
