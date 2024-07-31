@@ -108,12 +108,12 @@ int main(int argc, char **argv)
 	// //set up client id;
 	// int next_client_id = 1;
 	
-	// // create fd sets and initialize to use with select() function;
-	// // void FD_ZERO(fd_set *set); -> macro from select() function to initialize fd set to empty
-	// fd_set readfds, writefds, currfds;
-	// FD_ZERO(&currfds); //keep track of all our active fds
-	// FD_ZERO(&readfds); //any fds that are free to be read from will be dropped in this fd set by select
-	// FD_ZERO(&writefds); //any fds that are free to be written to will be dropped in this fd set by select
+	// create fd sets and initialize to use with select() function;
+	// void FD_ZERO(fd_set *set); -> macro from select() function to initialize fd set to empty
+	fd_set readfds, writefds, currfds;
+	FD_ZERO(&currfds); //keep track of all our active fds
+	FD_ZERO(&readfds); //any fds that are free to be read from will be dropped in this fd set by select
+	FD_ZERO(&writefds); //any fds that are free to be written to will be dropped in this fd set by select
 	
 	// // add server_socket to currfds;
 	// // void FD_SET(int fd, fd_set *set); -> add an fd to a specified fd set
