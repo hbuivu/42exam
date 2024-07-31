@@ -1,5 +1,5 @@
 // https://github.com/vnaslund-19/42_exam_rank_06/blob/main/mini_serv.c
-
+//PASSED GRADEME.FR
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>

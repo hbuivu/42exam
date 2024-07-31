@@ -1,4 +1,5 @@
 //https://github.com/artygo8/examRank06/blob/main/mini_serv.c
+//PASSED GRADEME.FR
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
