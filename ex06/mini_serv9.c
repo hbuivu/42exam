@@ -11,6 +11,7 @@ typedef struct s_client
 {
     int id;
     char *msg;
+    int open;
 }   t_client;
 
 int maxfd;
@@ -22,8 +23,8 @@ fd_set readfds;
 fd_set currfds;
 
 t_client clients[4096];
-char sendbuf[1000000];
-char recvbuf[1000000];
+char sendbuf[1000];
+char recvbuf[1000];
 
 int extract_message(char **buf, char **msg)
 {
@@ -66,15 +67,25 @@ char *str_join(char *buf, char *add)
 		return (0);
 	newbuf[0] = 0;
 	if (buf != 0)
+    {
 		strcat(newbuf, buf);
-	free(buf);
-	strcat(newbuf, add);
+	    free(buf);
+    }
+    if (add)
+	    strcat(newbuf, add);
 	return (newbuf);
 }
 
 void    return_error()
 {
-    write(2, "Fatal error\n", 13);
+    for (int fd = 0; fd <= maxfd; fd++)
+    {
+        if (clients[fd].msg)
+            free(clients[fd].msg);
+        if (clients[fd].open == 1)
+            close(fd);
+    }
+    write(2, "Fatal error\n", 12);
     exit(1);
 }
 
@@ -92,10 +103,11 @@ void    add_client()
     socklen_t len = sizeof(cli);
 	int clientfd = accept(sockfd, (struct sockaddr *)&cli, &len);
 	if (clientfd < 0)
-        return ;
+        return_error();
     
     //add client to array and set
     clients[clientfd].id = client_id;
+    clients[clientfd].open = 1;
     FD_SET(clientfd, &currfds);
 
     //update global variables
@@ -111,8 +123,10 @@ void    add_client()
 void    remove_client(int fd)
 {
     //free, clear, close
-    free(clients[fd].msg);
+    if (clients[fd].msg)
+        free(clients[fd].msg);
     clients[fd].msg = NULL;
+    clients[fd].open = 0;
     FD_CLR(fd, &currfds);
     FD_CLR(fd, &writefds);
     FD_CLR(fd, &readfds);
@@ -133,7 +147,8 @@ void    send_message(int bytes, int fd)
     {
         sprintf(sendbuf, "client %d: %s", clients[fd].id, msg);
         send_to_all(fd);
-        free(msg);
+        if (msg)
+            free(msg);
         msg = NULL;
     }
 }
@@ -142,7 +157,7 @@ int main(int argc, char **argv)
 {
     if (argc != 2)
     {
-        write(2, "Wrong number of arguments\n", 27);
+        write(2, "Wrong number of arguments\n", 26);
         exit(1);
     }
 
@@ -152,6 +167,7 @@ int main(int argc, char **argv)
 	struct sockaddr_in servaddr; 
 
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1)
         return_error();
 	bzero(&servaddr, sizeof(servaddr)); 
 
